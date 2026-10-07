@@ -164,10 +164,11 @@ function todayBlock(){
   const t = D.today; if(!t) return "";
   const codes = t.rows.map(r=>r.code).join(",");
   const head = t.settled ? "평가 완료" : "평가 대기 — 다음 거래일 장 마감 후 반영";
-  return `<section><h2>최근 후보 · ${ds(t.date)}</h2><p class="note">${head}. 관심종목에는 아래 코드를 그대로 붙여넣으면 됩니다.</p>
+  return `<section><h2>최근 후보 · ${ds(t.date)}</h2><p class="note">${head}. 관심종목에는 아래 코드를 그대로 붙여넣으면 됩니다. 기준가는 선정일 종가이고, 다음 거래일 시가가 '진입 허용 시가' 안(갭 ${t.gap?t.gap[0]+"~"+t.gap[1]:"—"}%, 호가단위 반영)이면 새 방식 진입 대상입니다. 프리마켓에서 제외선(+3%) 이상이면 제외합니다. 매수 기준선과 손절선은 09:05에 첫 5분봉이 끝나야 정해지고, 익절 목표는 진입가 +${nz(t.tp)?"—":t.tp}%입니다.</p>
     <div class="copy"><input id="codes" readonly value="${esc(codes)}" aria-label="종목코드"><button id="copyBtn">복사</button></div>
-    <div class="card scroll"><table><thead><tr><th>종목</th><th>점수</th><th>등락</th><th>거래량</th><th>52주고점</th><th>밀림</th><th>동반</th><th>${t.settled?"기존":"상태"}</th><th>${t.settled?"새 방식":""}</th></tr></thead><tbody>
+    <div class="card scroll"><table><thead><tr><th>종목</th><th>점수</th><th>등락</th><th>거래량</th><th>52주고점</th><th>밀림</th><th>동반</th><th>기준가</th><th>진입 허용 시가</th><th>프리마켓 제외선</th><th>매수 기준선<br><span class="muted">첫 5분봉 고가</span></th><th>손절선<br><span class="muted">첫 5분봉 저가</span></th><th>${t.settled?"기존":"상태"}</th><th>${t.settled?"새 방식":""}</th></tr></thead><tbody>
     ${t.rows.map(r=>`<tr><td>${esc(r.name)} <span class="muted">${esc(r.code)}</span></td><td>${nz(r.score)?"—":Number(r.score).toFixed(1)}</td><td class="${cls(r.change)}">${P(r.change,1)}</td><td>×${(r.vol_ratio/100).toFixed(1)}</td><td>${P(r.gap252,1)}</td><td>${r.gap_fail}회</td><td>${r.sector_n>=2?r.sector_n+"종목":"—"}</td>
+      <td>${W(r.ref_price)}</td><td>${nz(r.open_lo)?"—":(r.open_lo>r.open_hi?"없음":W(r.open_lo)+"~"+W(r.open_hi))}</td><td>${nz(r.pre_excl)?"—":W(r.pre_excl)+"↑"}</td><td class="muted">09:05 확정</td><td class="muted">09:05 확정</td>
       <td class="${t.settled?cls(r.a_ret):"muted"}">${t.settled?P(r.a_ret):"대기"}</td><td class="${cls(r.b_ret)}">${t.settled?(nz(r.b_ret)?esc(r.b_exit||"—"):P(r.b_ret)+" "+esc(r.b_exit||"")):""}</td></tr>`).join("")}
     </tbody></table></div></section>`;
 }
