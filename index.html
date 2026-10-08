@@ -135,6 +135,12 @@
   ul.res{list-style:none;margin:0;padding:0}
   ul.res li{display:flex;justify-content:space-between;gap:4px 12px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--rule)}
   ul.res li:last-child{border-bottom:0}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--rule);border-radius:999px;font-size:13px}
+  ol.mini{margin:0;padding-left:20px} ol.mini li{padding:4px 0;border-bottom:1px solid var(--rule)} ol.mini li:last-child{border:0}
+  ol.mini li span:first-child{font-weight:560;margin-right:8px}
+  .ch{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .cc header .bdg{margin-left:auto}
   /* 막대 카드가 좁으면 세로로 */
   .cq{container-type:inline-size;min-width:0}
   @container (max-width:430px){
@@ -184,7 +190,7 @@ const PP = n => nz(n) ? "—" : (n>0?"+":n<0?"−":"") + Math.abs(Number(n)).toF
 const PP3 = n => nz(n) ? "—" : (n>0?"+":n<0?"−":"") + Math.abs(Number(n)).toFixed(3);
 const T = v => nz(v) ? "—" : v;
 const NAME = {a:"기존 방식", b:"새 방식", c:"5일 홀딩"};
-const TABS = [["today","오늘"],["perf","성적"],["lab","연구실"],["cond","조건"],["log","기록"]];
+const TABS = [["today","오늘"],["closebet","종가배팅"],["perf","성적"],["lab","연구실"],["log","기록"]];
 const LABEL={gapfail:"갭상 후 밀림 제한",basic:"기본 자격",trend252:"52주 고점 근접",trend20:"20일 고점 근접",volume:"거래량 급증",bullish:"양봉",tail:"윗꼬리 짧음",change:"등락률 범위"};
 const yamlOf = set => { const g={}; Object.entries(set).forEach(([k,v])=>{const [a,b]=k.split("."); (g[a]=g[a]||[]).push(`  ${b}: ${v}`);}); return Object.entries(g).map(([a,l])=>`${a}:\n${l.join("\n")}`).join("\n"); };
 const fmtV = v => (typeof v==="number" && Math.abs(v)>=1e8) ? (v/1e8).toLocaleString("ko-KR")+"억" : v;
@@ -249,7 +255,7 @@ function candCards(){
       <p class="cm">점수 ${nz(r.score)?"—":Number(r.score).toFixed(1)} · 등락 <span class="${cls(r.change)}">${P(r.change,1)}</span> · 거래량 ×${(r.vol_ratio/100).toFixed(1)} · 52주고점 ${P(r.gap252,1)}${r.gap_fail>=2?` · <span class="down">밀림 ${r.gap_fail}회</span>`:""}</p>
       <dl class="kv2">${kv.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl></article>`;
   };
-  return `<section><h2>최근 후보 · ${ds(t.date)}</h2><p class="note">${head}. 기준가는 선정일 종가이고, 다음 거래일 시가가 '진입 허용 시가' 안(갭 ${t.gap?t.gap[0]+"~"+t.gap[1]:"—"}%, 호가단위 반영)이면 새 방식 진입 대상입니다. 프리마켓에서 제외선(+3%) 이상이면 제외합니다. 매수 기준선과 손절선은 09:05에 첫 5분봉이 끝나야 정해집니다.</p>
+  return `<section><h2>아침 단타 후보 · ${ds(t.date)}</h2><p class="note">${head}. 기준가는 선정일 종가이고, 다음 거래일 시가가 '진입 허용 시가' 안(갭 ${t.gap?t.gap[0]+"~"+t.gap[1]:"—"}%, 호가단위 반영)이면 새 방식 진입 대상입니다. 프리마켓에서 제외선(+3%) 이상이면 제외합니다. 매수 기준선과 손절선은 09:05에 첫 5분봉이 끝나야 정해집니다.</p>
     ${t.rows.length?`<div class="cards">${t.rows.map(card).join("")}</div>`:emptyCard("조건을 통과한 종목이 없습니다.")}
     <p class="note" style="margin-top:14px">관심종목에는 아래 코드를 그대로 붙여넣으면 됩니다.</p>
     <div class="copy"><input id="codes" readonly value="${esc(codes)}" aria-label="종목코드"><button id="copyBtn">복사</button></div></section>`;
@@ -418,7 +424,8 @@ function labTab(){
   let h = sec("선별 효과 판정", D.verdict ? verdictBlock() : emptyCard("아직 평가된 거래가 없습니다.","후보와 대조군의 가상매매 결과가 쌓이면 여기서 조건식이 종목을 잘 고르는지 판정합니다."));
   if(R && R.error) h += sec("조건식 연구실", emptyCard(esc(R.error)));
   else if(R) h += variantsSec(R) + proposalSec(R) + regimeSec(R);
-  h += bBacktestSec() + entrySec(R && !R.error ? R : null);
+  h += bBacktestSec() + bBeforeAfterSec() + entrySec(R && !R.error ? R : null) + cbResearchSec() + casesSec()
+     + (typeof discoverySec==="function" ? discoverySec() : "") + condTab();
   return h;
 }
 
@@ -468,6 +475,157 @@ function logTab(){
   ], D.recent), "선정 근거였던 조건값과 결과입니다. 이 표가 위 분석의 원자료입니다.");
 }
 
+
+/* ───── 종가배팅(가상) ───── */
+const CBL = {B:"종가_B", A:"A", D:"D(대덕전자형)", B10:"B(상위10%판)"};
+const CBN = {B:"주력 · 20일 +20%↑ · 당일 +3%↑ · 양봉 · 고가 대비 −2% 이내", A:"비교 · 등락 +6~10% · 거래량 3배↑ · 거래대금 100억↑", D:"비교 · 20일 상위10% · 전일 +5% 양봉 → 당일 음봉 −1.5~−6%"};
+function swBadge(s){ if(!s) return `<span class="bdg">—</span>`; return `<span class="bdg ${s.on?"go":""}">${s.on?"ON":"OFF"}</span>`; }
+function lineChart(series, opt={}){
+  const pts = series.flatMap(s=>s.points.map(p=>p[1])); if(!pts.length) return "";
+  const dates = [...new Set(series.flatMap(s=>s.points.map(p=>p[0])))].sort();
+  const w=900,h=220,pl=56,pr=12,pt=12,pb=24; let lo=Math.min(0,...pts), hi=Math.max(0,...pts); if(hi===lo) hi=lo+1;
+  const pad=(hi-lo)*.08; lo-=pad; hi+=pad;
+  const X=d=>pl+(w-pl-pr)*(dates.length<2?.5:dates.indexOf(d)/(dates.length-1)), Y=v=>pt+(h-pt-pb)*(1-(v-lo)/(hi-lo));
+  let g=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(opt.label||"누적 추이")}">`;
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v); g+=`<line x1="${pl}" y1="${y}" x2="${w-pr}" y2="${y}" stroke="var(--rule)"/><text x="${pl-8}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--muted)">${opt.fmt?opt.fmt(v):v.toFixed(0)}</text>`;}
+  if(lo<0&&hi>0) g+=`<line x1="${pl}" y1="${Y(0)}" x2="${w-pr}" y2="${Y(0)}" stroke="var(--muted)"/>`;
+  for(const s of series){ if(!s.points.length) continue;
+    g+= s.points.length===1 ? `<circle cx="${X(s.points[0][0])}" cy="${Y(s.points[0][1])}" r="4" fill="${s.color}"/>`
+      : `<polyline points="${s.points.map(p=>X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)).join(" ")}" fill="none" stroke="${s.color}" stroke-width="${s.wide?2.4:1.5}" stroke-dasharray="${s.dash||""}" stroke-linejoin="round"/>`; }
+  const step=Math.max(1,Math.ceil(dates.length/7));
+  dates.forEach((d,i)=>{ if(i%step&&i!==dates.length-1) return; g+=`<text x="${X(d)}" y="${h-6}" text-anchor="middle" font-size="11" fill="var(--muted)">${md(d)}</text>`; });
+  return g+`</svg><div class="legend">${series.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join("")}</div>`;
+}
+const CBC = {B:"var(--rise)", A:"var(--flat)", D:"var(--fall)", B10:"var(--muted)"};
+function cbPicksTable(rows){
+  return rtable([
+    {h:"순위", l:true, v:r=>`${r.rank}. ${esc(r.name)} <span class="muted">${esc(r.code)}</span>`},
+    {h:"종가", v:r=>W(r.close)}, {h:"등락", v:r=>P(r.change,1), c:r=>cls(r.change)}, {h:"20일 수익률", v:r=>P(r.ret20,0), c:r=>cls(r.ret20)},
+    {h:"가상 매수가", core:false, v:r=>W(r.entry_px)}, {h:"업종", core:false, v:r=>esc(r.sector||"—")},
+  ], rows);
+}
+function cbSummary(){
+  const C=D.closebet, st=C&&C.state; if(!st) return "";
+  const sw=st.switches, B=st.today.filter(x=>x.rule==="B");
+  const chips = ["B","A","D"].map(r=>`<span class="chip"><b>${CBL[r]}</b> ${swBadge(sw[r])} <span class="muted">${nz(sw[r]&&sw[r].avg)?"—":P(sw[r].avg)}</span></span>`).join("");
+  const list = B.length ? `<ol class="mini">${B.map(x=>`<li><span>${esc(x.name)}</span><span>${W(x.close)} · <span class="${cls(x.change)}">${P(x.change,1)}</span> · 20일 <span class="${cls(x.ret20)}">${P(x.ret20,0)}</span></span></li>`).join("")}</ol>`
+    : `<p class="muted" style="margin:6px 0 0">오늘 종가_B 해당 종목이 없습니다.</p>`;
+  return sec(`종가배팅(가상) · ${ds(st.date)}`, `<div class="card"><div class="chips">${chips}</div><p class="note" style="margin:10px 0 4px">종가_B 오늘 ${st.counts.B}종목 중 상위 ${B.length}</p>${list}<p class="note" style="margin:10px 0 0"><a href="#closebet" data-goto="closebet">종가배팅 탭에서 자세히 보기 →</a></p></div>`,
+    `스위치는 규칙별 직전 ${st.window}회(익일 시가 청산, 비용 후) 평균이 0보다 크면 ON입니다. '최근 통하는가' 표시일 뿐 매수 추천이 아닙니다.`);
+}
+function cbPrevBlock(prev, title){
+  if(!prev||!prev.rows||!prev.rows.length) return "";
+  const hold = prev.nights>=2 ? ` <span class="bdg">${prev.nights}일 보유</span>` : "";
+  return sec(`${title} · ${ds(prev.date)} → ${ds(prev.d1)}${hold}`, rtable([
+    {h:"규칙·종목", l:true, v:r=>`${CBL[r.rule]||r.rule} ${r.rank}. ${esc(r.name)}`},
+    {h:"① 시가", v:r=>P(r.r_open), c:r=>cls(r.r_open)},
+    {h:"④ 종가", v:r=>P(r.r_close), c:r=>cls(r.r_close)},
+    {h:"② 09:10", core:false, v:r=>P(r.r_0910), c:r=>cls(r.r_0910)},
+    {h:"③ +3%/−2%/09:30", core:false, v:r=>`${P(r.r_tp)} <span class="muted">(${esc(r.tp_mode||"")})</span>`, c:r=>cls(r.r_tp)},
+    {h:"가상 매수가", core:false, v:r=>W(r.entry_px)}, {h:"익일 시가·종가", core:false, v:r=>`${W(r.o1)} · ${W(r.c1)}`},
+  ], prev.rows), "다음 거래일 가격으로 정산한 가상 결과입니다(비용·슬리피지 반영). ②는 5분봉이 있을 때만, ③은 분봉이 없으면 일봉 근사입니다.");
+}
+function cbTab(){
+  const C=D.closebet; if(!C||!C.state) return emptyCard("아직 종가배팅 기록이 없습니다.","매일 16:30 정규 실행에서 규칙별 상위 5종목을 가상 매수로 기록합니다.");
+  const st=C.state, sw=st.switches, bt=C.backtest;
+  const cards = ["B","A","D"].map(r=>{ const s=sw[r]||{};
+    return `<article class="card cc"><header><b>${CBL[r]}</b>${swBadge(s)}</header><p class="cm">${CBN[r]}</p>
+      <dl class="kv2"><dt>직전 ${s.n||0}회 평균</dt><dd class="${cls(s.avg)}">${P(s.avg)}</dd><dt>오늘 해당</dt><dd>${st.counts[r]}종목</dd><dt>추이</dt><dd>${spark(s.spark)||"—"}</dd></dl></article>`;}).join("");
+  let h = sec("규칙별 스위치", `<div class="cards">${cards}</div>`, `직전 ${st.window}회(거래가 있었던 날의 상위 5 바스켓, 익일 시가 청산, 비용 후) 평균이 0보다 크면 ON입니다. 백테스트로 초기값을 채웠고 실제 가상 정산이 쌓이면 그 값으로 바뀝니다. OFF여도 가상 기록은 계속합니다.`);
+  h += sec(`오늘 해당 종목 · ${ds(st.date)}`, ["B","A","D"].map(r=>{ const rows=st.today.filter(x=>x.rule===r);
+      return `<h3 class="h3s">${CBL[r]} <span class="muted">${st.counts[r]}종목 중 상위 ${rows.length}</span></h3>` + (rows.length?cbPicksTable(rows):`<p class="note">해당 없음</p>`); }).join(""),
+    "당일 종가(+슬리피지)로 종목당 같은 금액을 가상 매수합니다. 청산은 다음 거래일 ① 시가 ② 09:10 ③ +3% 익절·−2% 손절·09:30 ④ 종가 네 가지로 기록합니다.");
+  h += cbPrevBlock(st.prev, "전일 결과");
+  const led = C.ledger && C.ledger.rules;
+  if(led && Object.keys(led).length){
+    const ser = Object.entries(led).map(([r,x])=>({label:CBL[r]||r, color:CBC[r]||"var(--ink)", wide:r==="B", points:x.daily.map(d=>[d.date,d.cum])}));
+    h += sec("규칙별 누적 가상 손익", `<div class="card">${lineChart(ser,{label:"규칙별 누적 가상 손익", fmt:v=>(Math.round(v/10000)).toLocaleString("ko-KR")+"만"})}</div>`, "종목당 100만원 동일 금액, 익일 시가 청산 기준 누적입니다.");
+    h += sec("월별 가상 성과", rtable([
+      {h:"월·규칙", l:true, v:x=>`${x.month.slice(0,4)}.${x.month.slice(4)} ${CBL[x.rule]||x.rule}`}, {h:"건수", v:x=>x.n}, {h:"① 시가", v:x=>P(x.r_open), c:x=>cls(x.r_open)}, {h:"승률", v:x=>x.win+"%"},
+      {h:"④ 종가", core:false, v:x=>P(x.r_close), c:x=>cls(x.r_close)}, {h:"거래일", core:false, v:x=>x.days},
+    ], Object.entries(led).flatMap(([r,x])=>x.monthly.map(m=>({...m, rule:r}))).sort((a,b)=>b.month.localeCompare(a.month))));
+  } else h += sec("규칙별 누적 가상 손익", emptyCard("아직 정산된 가상 거래가 없습니다.","다음 거래일 장 마감 후 첫 정산이 기록됩니다. 아래 백테스트 누적을 참고하세요."));
+  if(bt && bt.rules){
+    const ser = ["B","A","D"].filter(r=>bt.rules[r]).map(r=>{ let c=0; return {label:CBL[r], color:CBC[r], wide:r==="B", points:bt.rules[r].series.map(([d,v])=>[d,(c+=v)])}; });
+    h += sec(`백테스트 누적(%p 합) <span class="muted h2s">${ds(bt.window.start)}~${ds(bt.window.end)}</span>`, `<div class="card">${lineChart(ser,{label:"백테스트 누적 수익", fmt:v=>v.toFixed(0)+"%"})}</div>`,
+      "과거 240일 동안 매일 상위 5를 종가에 사서 다음 날 시가에 판 바스켓 평균 수익(비용 후)을 단순 합산했습니다. 스위치와 무관한 전체 기록입니다.");
+    h += sec("월별 백테스트", rtable([
+      {h:"월", l:true, v:x=>`${x.month.slice(0,4)}.${x.month.slice(4)}`},
+      ...["B","A","D"].map(r=>({h:CBL[r], v:x=>{const m=(bt.rules[r].monthly||[]).find(y=>y.month===x.month); return m?`${P(m.mean)} <span class="muted">(${m.days}일)</span>`:"—";}, c:x=>{const m=(bt.rules[r].monthly||[]).find(y=>y.month===x.month); return m?cls(m.mean):"";}})),
+      ...["B","A","D"].map(r=>({h:CBL[r]+" 스위치 ON", core:false, v:x=>{const m=(bt.rules[r].monthly||[]).find(y=>y.month===x.month); return m&&m.on_days?`${P(m.on_mean)} (${m.on_days}일)`:"—";}})),
+    ], [...new Set(Object.values(bt.rules).flatMap(x=>(x.monthly||[]).map(m=>m.month)))].sort().reverse().map(m=>({month:m}))), "월마다 해당 규칙 상위 5 바스켓의 일평균(익일 시가 청산, 비용 후)입니다.");
+  }
+  h += realCompare();
+  return h;
+}
+function realCompare(){
+  const R=D.real_trades; if(!R||!R.rows||!R.rows.length) return "";
+  const led=D.closebet&&D.closebet.ledger&&D.closebet.ledger.rules;
+  const vB = led&&led.B ? `${P(led.B.avg.r_open)} (${led.B.n}건)` : "—";
+  const bb = D.b_backtest&&D.b_backtest.summary&&D.b_backtest.summary.all;
+  return sec("실매매 비교", rtable([
+    {h:"날짜·종목", l:true, v:r=>`${esc(r.date)} ${esc(r.name)}`}, {h:"전략", l:true, v:r=>esc(r.strategy)},
+    {h:"평단", v:r=>W(r.avg_price||r.buy_price)}, {h:"결과", v:r=>r.status==="매도"?P(r.ret_pct):`<span class="muted">${esc(r.status)}</span>`, c:r=>cls(r.ret_pct)},
+    {h:"매수가·시각", core:false, v:r=>`${W(r.buy_price)} ${esc(r.buy_time||"")}`}, {h:"매도가·시각", core:false, v:r=>nz(r.sell_price)?"—":`${W(r.sell_price)} ${esc(r.sell_time||"")}`},
+    {h:"메모", core:false, v:r=>esc(r.memo||"")},
+  ], R.rows), `실제 매매(직접 기록)와 가상 기록을 나란히 봅니다. 가상 평균: 종가배팅 종가_B ① 시가 청산 ${vB} · 아침 단타 B 과거 백테스트 진입 평균 ${bb?P(bb.b_avg):"—"}. 수익률은 비용 ${D.config.cost}% 차감 후입니다.`);
+}
+
+/* ───── 연구실 추가 ───── */
+function bBeforeAfterSec(){
+  const A=D.b_backtest_before, B=D.b_backtest; if(!A||!B||!A.summary||!B.summary) return "";
+  const rows=[["수정 전 · 전체",A.summary.all],["수정 후 · 전체",B.summary.all],["수정 전 · 표본 밖",A.summary.oos],["수정 후 · 표본 밖",B.summary.oos]];
+  return sec("새 방식(B) 시뮬레이션 수정 전후", rtable([
+    {h:"구분", l:true, v:r=>r[0]}, {h:"진입", v:r=>`${W(r[1].entered)} <span class="muted">(${T(r[1].entry_rate)}%)</span>`},
+    {h:"승률", v:r=>nz(r[1].win)?"—":r[1].win+"%"}, {h:"진입 평균", v:r=>P(r[1].b_avg), c:r=>cls(r[1].b_avg)},
+    {h:"같은 종목 A 대비 (t)", core:false, v:r=>`${PP(r[1].delta)}%p (${T(r[1].t)})`, c:r=>cls(r[1].delta)},
+    {h:"후보당 B", core:false, v:r=>P(r[1].ev_b,3), c:r=>cls(r[1].ev_b)},
+  ], rows), "수정 전 구현은 봉이 끝나야 알 수 있는 거래량으로 판단하면서 돌파 순간 가격에 체결해 미래정보가 섞였습니다. 2026-10-08부터 '봉 마감 확인 진입'(첫 5분봉 고가 위에서 마감 + 그 봉 거래량 > 첫 봉 → 그 봉 종가 진입, 다음 봉부터 청산)으로 고쳤습니다. 같은 후보·같은 분봉으로 다시 계산한 값입니다.");
+}
+function cbResearchSec(){
+  const bt=D.closebet&&D.closebet.backtest; if(!bt||!bt.rules) return "";
+  const rows=[]; ["B","B10","A","D"].forEach(r=>{ const x=bt.rules[r]; if(!x) return;
+    [["상위 5","top"],["해당 전부","all"],["상위 5 제외","rest"],["상위 5 + 스위치 ON","switch_on"]].forEach(([nm,k])=>rows.push({rule:r, nm, x:x[k], per:x.per_day}));});
+  const b=v=>v&&v.days?`${P(v.mean)} <span class="muted">(t=${T(v.t)}, ${v.days}일)</span>`:"—";
+  return sec(`종가배팅 백테스트 <span class="muted h2s">${ds(bt.window.start)}~${ds(bt.window.end)} · 표본 밖 ${ds(bt.window.oos_start)}~</span>`, rtable([
+    {h:"규칙·묶음", l:true, v:r=>`${CBL[r.rule]} · ${r.nm}`}, {h:"전체", v:r=>b(r.x.all), c:r=>cls(r.x.all.mean)}, {h:"표본 밖", v:r=>b(r.x.oos), c:r=>cls(r.x.oos.mean)},
+    {h:"표본 안", core:false, v:r=>b(r.x.is), c:r=>cls(r.x.is.mean)}, {h:"하루 평균 종목", core:false, v:r=>r.per},
+  ], rows), `종가(+슬리피지 ${bt.assumptions.slip}%) 매수 → 다음 거래일 시가 매도, 비용 ${bt.assumptions.cost}% 반영, 날짜별 바스켓 평균을 다시 평균했습니다. 스위치 ON은 직전 ${bt.assumptions.window}회 평균이 0보다 클 때만 산 경우입니다. B(상위10%판)는 20일 수익률 조건을 '전 종목 상위 10%'로 바꾼 연구용 변형입니다.`);
+}
+function casesSec(){
+  const C=D.cases; if(!C||!C.length) return "";
+  const f=x=>nz(x)?"—":x;
+  const body=C.map(cs=>{
+    let inner="";
+    if(cs.type==="stock") inner=(cs.stocks||[]).map(s=>{
+      if(s.error) return `<p class="note">${esc(s.name)}: ${esc(s.error)}</p>`;
+      const r=s.result;
+      return `<h3 class="h3s">${esc(s.name)} <span class="muted">${esc(s.code)}</span></h3><dl class="kv">
+        <div><dt>전일 등락·캔들</dt><dd class="${cls(s.chg_d1)}">${P(s.chg_d1,1)} ${esc(s.candle_d1)}</dd></div>
+        <div><dt>전전일 등락·캔들</dt><dd class="${cls(s.chg_d2)}">${P(s.chg_d2,1)} ${esc(s.candle_d2)}</dd></div>
+        <div><dt>전일 거래량(전전일 대비)</dt><dd>×${f(s.vol_vs_prev_d1)}</dd></div><div><dt>전일 거래량(20일 평균 대비)</dt><dd>×${f(s.vol_vs_avg20_d1)}</dd></div>
+        <div><dt>5일·20일 수익률</dt><dd>${P(s.ret5,1)} · ${P(s.ret20,1)}</dd></div><div><dt>20일·52주 고점 거리</dt><dd>${P(s.gap_high20,1)} · ${P(s.gap_high252,1)}</dd></div>
+        <div><dt>20일 평균 거래대금</dt><dd>${W(s.avgval20_eok)}억</dd></div>
+        <div><dt>당일 결과</dt><dd>${r?`갭 <span class="${cls(r.gap)}">${P(r.gap)}</span> · 종가 <span class="${cls(r.chg)}">${P(r.chg)}</span> · 시가→고가 ${P(r.open_to_high)}`:"아직 없음"}</dd></div></dl>`;}).join("");
+    else if(cs.type==="closebet_preview"){
+      const a=cs.actual, n=cs.next;
+      inner=`<dl class="kv"><div><dt>장중 미리보기</dt><dd>${f(cs.preview_count)}종목 · ${(cs.preview_top||[]).map(esc).join(", ")}</dd></div>
+        <div><dt>실제 종가 기준</dt><dd>${a?`${a.n_qualified}종목 · `+a.top.map(x=>esc(x.name)+" "+P(x.change,1)).join(", "):"아직 없음(16:30 실행 후)"}</dd></div>
+        <div><dt>다음 거래일 성과</dt><dd>${n?`${ds(n.d1)} 시가 청산 평균 <span class="${cls(n.avg_open)}">${P(n.avg_open)}</span> · 종가 청산 <span class="${cls(n.avg_close)}">${P(n.avg_close)}</span> (${n.nights}일 보유)`:"정산 대기"}</dd></div></dl>`;
+    }
+    return `<article class="card" style="margin-bottom:12px"><header class="ch"><b>${esc(cs.title||"")}</b> <span class="muted">${ds(cs.date)}</span></header>
+      ${cs.memo?`<p class="note" style="margin:6px 0">${esc(cs.memo)}</p>`:""}${inner}${cs.lesson?`<p style="margin:10px 0 0"><b>교훈</b> ${esc(cs.lesson)}</p>`:""}</article>`;}).join("");
+  return sec("사례 노트", body, "사람이 적은 메모와 함께 전날 특징(사례일 전 거래일까지 값)과 당일 결과를 자동으로 계산했습니다.");
+}
+function realTradesSec(){
+  const R=D.real_trades; if(!R||!R.rows||!R.rows.length) return "";
+  return sec("실매매 기록", rtable([
+    {h:"날짜", l:true, v:r=>esc(r.date)}, {h:"종목", l:true, v:r=>`${esc(r.name)} <span class="muted">${esc(r.code)}</span>`},
+    {h:"전략", l:true, v:r=>esc(r.strategy)}, {h:"결과", v:r=>r.status==="매도"?P(r.ret_pct):`<span class="muted">${esc(r.status)}</span>`, c:r=>cls(r.ret_pct)},
+    {h:"매수가", core:false, v:r=>W(r.buy_price)}, {h:"평단", core:false, v:r=>W(r.avg_price)}, {h:"수량", core:false, v:r=>nz(r.qty)?"—":W(r.qty)},
+    {h:"매도", core:false, v:r=>nz(r.sell_price)?"—":`${W(r.sell_price)} ${esc(r.sell_date||"")} ${esc(r.sell_time||"")}`}, {h:"메모", core:false, v:r=>esc(r.memo||"")},
+  ], R.rows), "채팅으로 알려주시면 src/log_trade.py로 기록합니다. 수익률은 평단 기준, 비용 차감 후입니다.");
+}
 /* ───── 화면 ───── */
 function render(){
   const app=document.getElementById("app");
@@ -475,7 +633,8 @@ function render(){
     app.innerHTML=`<h1>조건식 검증</h1><p class="sub">후보 종목을 가상으로 매매해 조건이 실제로 먹히는지 확인합니다.</p><div class="card empty"><p>아직 기록이 없습니다.</p><p>스캐너가 처음 돌고 나면 후보가, 다음 거래일 장 마감 후에 평가 결과가 쌓입니다.</p></div>`;
     return;
   }
-  const panels = {today: warnBlock()+candCards()+oneLiners()+prevResult(), perf: perfTab(), lab: labTab(), cond: condTab(), log: logTab()};
+  const panels = {today: warnBlock()+candCards()+cbSummary()+oneLiners()+prevResult()+cbPrevBlock(D.closebet&&D.closebet.state&&D.closebet.state.prev, "전일 종가배팅 결과"),
+    closebet: cbTab(), perf: perfTab(), lab: labTab(), log: logTab()+realTradesSec()};
   app.innerHTML = `<h1>조건식 검증</h1><p class="sub">${D.has_trades?`${D.days}거래일 · 후보 ${W(D.total)}건 · `:""}종목당 ${W(D.config.unit)}원 가정 · 최근 스캔 ${D.last_scan?ds(D.last_scan):"—"}${D.last_settle?` · 최근 정산 ${ds(D.last_settle)}`:""}</p>
     <nav class="tabbar" role="tablist" aria-label="대시보드 탭">${TABS.map(([id,nm])=>`<button role="tab" id="t-${id}" aria-controls="p-${id}" aria-selected="${tab===id}" tabindex="${tab===id?0:-1}">${nm}</button>`).join("")}</nav>
     ${TABS.map(([id])=>`<div role="tabpanel" id="p-${id}" aria-labelledby="t-${id}" tabindex="0"${tab===id?"":" hidden"}>${panels[id]}</div>`).join("")}`;
@@ -502,6 +661,7 @@ function wire(){
     catch(e){i.select();document.execCommand&&document.execCommand("copy");btn.textContent="선택됨 — Ctrl+C";}
     setTimeout(()=>btn.textContent="복사",1800);};
 }
+document.addEventListener("click", e=>{const a=e.target.closest("[data-goto]"); if(a){e.preventDefault(); selectTab(a.dataset.goto,false); window.scrollTo(0,0);}});
 function toggleRow(tr){
   const d=tr.nextElementSibling; if(!d||!d.classList.contains("xrow")) return;
   const open=d.hidden; d.hidden=!open; tr.setAttribute("aria-expanded", open);
