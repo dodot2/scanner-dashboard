@@ -703,8 +703,11 @@ function cbTodayBlock(){
       {h:"20일 수익률", v:r=>P(r.ret20,0), c:r=>cls(r.ret20)}, {h:"고가 대비", v:r=>P(r.tail,1), c:r=>cls(r.tail)},
     ], X.rows) : emptyCard("오늘 종가배팅 후보 없음");
   const sell = X.sell_date ? `${md(X.sell_date)} 09:00 시가 매도` : "다음 거래일 시가 매도";
+  const sw = D.closebet && D.closebet.state && D.closebet.state.switches && D.closebet.state.switches.B;
+  const swTxt = sw ? `<b>스위치 ${sw.on?"ON":"OFF"}</b>(직전 ${sw.n}회 평균 ${P(sw.avg)})${sw.on?"":" — 최근 성과 마이너스, 기록용"}. ` : "";
+  const noteTxt = X.note ? ` ${esc(X.note)}.` : "";
   return sec(`오늘 종가배팅 후보 · ${ds(X.date)} <span class="muted h2s">${esc(X.stage||"확정 종가")} · 기준 ${esc(X.asof)}</span>`, body + diff,
-    `규칙 종가_B(시총 3,000억↑ · 20일 평균 거래대금 20억↑ · 20일 +20%↑ · 당일 +3%↑ · 양봉 · 고가 대비 −2% 이내 · 상한가 근접 +29%↑ 제외) 해당 ${X.n_qualified}종목 중 등락률 상위 ${X.rows?X.rows.length:0}${X.limit_up_excluded?` (상한가 ${X.limit_up_excluded}종목 제외)`:""}. 15:40~16:00 시간외 종가 매수 가능 · ${sell} · <b>검증 전</b>. 데이터: ${esc(X.source||"")}.`);
+    `${swTxt}규칙 종가_B(시총 3,000억↑ · 20일 평균 거래대금 20억↑ · 20일 +20%↑ · 당일 +3%↑ · 양봉 · 고가 대비 −2% 이내 · 상한가 근접 +29%↑ 제외) 해당 ${X.n_qualified}종목 중 등락률 상위 ${X.rows?X.rows.length:0}${X.limit_up_excluded?` (상한가 ${X.limit_up_excluded}종목 제외)`:""}. 15:40~16:00 시간외 종가 매수 가능 · ${sell} · <b>검증 전</b>. 데이터: ${esc(X.source||"")}. 투자경고·단기과열·투자주의환기·관리 종목은 제외합니다.${noteTxt}`);
 }
 /* ───── 화면 ───── */
 function render(){
