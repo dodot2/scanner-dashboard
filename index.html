@@ -693,6 +693,19 @@ function morningSec(){
   return sec(`아침 단타 실전 시뮬레이션 <span class="muted h2s">키움 1분봉 · ${ds(M.window.start)}~${ds(M.window.end)}</span>`, h,
     `그룹별 1회 기대수익(비용 후) 상위 조합입니다. 1분봉 호출 ${W(M.fetch.calls)}회(캐시 ${W(M.fetch.cache_hits)}). 진입·청산 정의는 README와 src/morning_sim.py에 있습니다. 같은 데이터에서 여러 조합을 골랐으므로 상위 값은 과대평가돼 있을 수 있습니다.`);
 }
+
+function cbTodayBlock(){
+  const X=D.closebet_today; if(!X) return "";
+  const pv=X.preview, diff = pv && (pv.dropped.length||pv.added.length) ? `<p class="note" style="margin:10px 0 0">장중 미리보기 대비 — 빠짐: ${pv.dropped.map(esc).join(", ")||"없음"} · 새로 들어옴: ${pv.added.map(esc).join(", ")||"없음"}</p>` : (pv?`<p class="note" style="margin:10px 0 0">장중 미리보기 상위 5와 같습니다.</p>`:"");
+  const body = X.rows && X.rows.length ? rtable([
+      {h:"종목", l:true, v:r=>`${r.rank}. ${esc(r.name)} <span class="muted">${esc(r.code)}</span>`},
+      {h:"종가", v:r=>W(r.close)}, {h:"등락", v:r=>P(r.change,1), c:r=>cls(r.change)},
+      {h:"20일 수익률", v:r=>P(r.ret20,0), c:r=>cls(r.ret20)}, {h:"고가 대비", v:r=>P(r.tail,1), c:r=>cls(r.tail)},
+    ], X.rows) : emptyCard("오늘 종가배팅 후보 없음");
+  const sell = X.sell_date ? `${md(X.sell_date)} 09:00 시가 매도` : "다음 거래일 시가 매도";
+  return sec(`오늘 종가배팅 후보 · ${ds(X.date)} <span class="muted h2s">${esc(X.stage||"확정 종가")} · 기준 ${esc(X.asof)}</span>`, body + diff,
+    `규칙 종가_B(시총 3,000억↑ · 20일 평균 거래대금 20억↑ · 20일 +20%↑ · 당일 +3%↑ · 양봉 · 고가 대비 −2% 이내 · 상한가 근접 +29%↑ 제외) 해당 ${X.n_qualified}종목 중 등락률 상위 ${X.rows?X.rows.length:0}${X.limit_up_excluded?` (상한가 ${X.limit_up_excluded}종목 제외)`:""}. 15:40~16:00 시간외 종가 매수 가능 · ${sell} · <b>검증 전</b>. 데이터: ${esc(X.source||"")}.`);
+}
 /* ───── 화면 ───── */
 function render(){
   const app=document.getElementById("app");
@@ -700,8 +713,8 @@ function render(){
     app.innerHTML=`<h1>조건식 검증</h1><p class="sub">후보 종목을 가상으로 매매해 조건이 실제로 먹히는지 확인합니다.</p><div class="card empty"><p>아직 기록이 없습니다.</p><p>스캐너가 처음 돌고 나면 후보가, 다음 거래일 장 마감 후에 평가 결과가 쌓입니다.</p></div>`;
     return;
   }
-  const panels = {today: warnBlock()+candCards()+cbSummary()+oneLiners()+prevResult()+cbPrevBlock(D.closebet&&D.closebet.state&&D.closebet.state.prev, "전일 종가배팅 결과"),
-    closebet: cbTab(), perf: perfTab(), lab: labTab(), log: logTab()+realTradesSec()};
+  const panels = {today: cbTodayBlock()+warnBlock()+candCards()+cbSummary()+oneLiners()+prevResult()+cbPrevBlock(D.closebet&&D.closebet.state&&D.closebet.state.prev, "전일 종가배팅 결과"),
+    closebet: cbTodayBlock()+cbTab(), perf: perfTab(), lab: labTab(), log: logTab()+realTradesSec()};
   app.innerHTML = `<h1>조건식 검증</h1><p class="sub">${D.has_trades?`${D.days}거래일 · 후보 ${W(D.total)}건 · `:""}종목당 ${W(D.config.unit)}원 가정 · 최근 스캔 ${D.last_scan?ds(D.last_scan):"—"}${D.last_settle?` · 최근 정산 ${ds(D.last_settle)}`:""}</p>
     <nav class="tabbar" role="tablist" aria-label="대시보드 탭">${TABS.map(([id,nm])=>`<button role="tab" id="t-${id}" aria-controls="p-${id}" aria-selected="${tab===id}" tabindex="${tab===id?0:-1}">${nm}</button>`).join("")}</nav>
     ${TABS.map(([id])=>`<div role="tabpanel" id="p-${id}" aria-labelledby="t-${id}" tabindex="0"${tab===id?"":" hidden"}>${panels[id]}</div>`).join("")}`;
