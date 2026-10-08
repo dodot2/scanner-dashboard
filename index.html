@@ -477,7 +477,7 @@ function logTab(){
 
 
 /* ───── 종가배팅(가상) ───── */
-const CBL = {B:"종가_B", A:"A", D:"D(대덕전자형)", B10:"B(상위10%판)"};
+const CBL = {B:"종가_B", A:"A", D:"D(대덕전자형)", B10:"B(상위10%판)", B_lim:"B(상한가 포함·체결 불가)"};
 const CBN = {B:"주력 · 20일 +20%↑ · 당일 +3%↑ · 양봉 · 고가 대비 −2% 이내", A:"비교 · 등락 +6~10% · 거래량 3배↑ · 거래대금 100억↑", D:"비교 · 20일 상위10% · 전일 +5% 양봉 → 당일 음봉 −1.5~−6%"};
 function swBadge(s){ if(!s) return `<span class="bdg">—</span>`; return `<span class="bdg ${s.on?"go":""}">${s.on?"ON":"OFF"}</span>`; }
 function lineChart(series, opt={}){
@@ -583,14 +583,15 @@ function bBeforeAfterSec(){
   ], rows), "수정 전 구현은 봉이 끝나야 알 수 있는 거래량으로 판단하면서 돌파 순간 가격에 체결해 미래정보가 섞였습니다. 2026-10-08부터 '봉 마감 확인 진입'(첫 5분봉 고가 위에서 마감 + 그 봉 거래량 > 첫 봉 → 그 봉 종가 진입, 다음 봉부터 청산)으로 고쳤습니다. 같은 후보·같은 분봉으로 다시 계산한 값입니다.");
 }
 function cbResearchSec(){
-  const bt=D.closebet&&D.closebet.backtest; if(!bt||!bt.rules) return "";
-  const rows=[]; ["B","B10","A","D"].forEach(r=>{ const x=bt.rules[r]; if(!x) return;
+  const C=D.closebet||{}, bt=C.backtest_kiwoom||C.backtest; if(!bt||!bt.rules) return "";
+  const src = C.backtest_kiwoom ? "키움 정규장 일봉(종가 보정)" : "공개 데이터(Yahoo)";
+  const rows=[]; ["B","B_lim","B10","A","D"].forEach(r=>{ const x=bt.rules[r]; if(!x) return;
     [["상위 5","top"],["해당 전부","all"],["상위 5 제외","rest"],["상위 5 + 스위치 ON","switch_on"]].forEach(([nm,k])=>rows.push({rule:r, nm, x:x[k], per:x.per_day}));});
   const b=v=>v&&v.days?`${P(v.mean)} <span class="muted">(t=${T(v.t)}, ${v.days}일)</span>`:"—";
   return sec(`종가배팅 백테스트 <span class="muted h2s">${ds(bt.window.start)}~${ds(bt.window.end)} · 표본 밖 ${ds(bt.window.oos_start)}~</span>`, rtable([
     {h:"규칙·묶음", l:true, v:r=>`${CBL[r.rule]} · ${r.nm}`}, {h:"전체", v:r=>b(r.x.all), c:r=>cls(r.x.all.mean)}, {h:"표본 밖", v:r=>b(r.x.oos), c:r=>cls(r.x.oos.mean)},
     {h:"표본 안", core:false, v:r=>b(r.x.is), c:r=>cls(r.x.is.mean)}, {h:"하루 평균 종목", core:false, v:r=>r.per},
-  ], rows), `종가(+슬리피지 ${bt.assumptions.slip}%) 매수 → 다음 거래일 시가 매도, 비용 ${bt.assumptions.cost}% 반영, 날짜별 바스켓 평균을 다시 평균했습니다. 스위치 ON은 직전 ${bt.assumptions.window}회 평균이 0보다 클 때만 산 경우입니다. B(상위10%판)는 20일 수익률 조건을 '전 종목 상위 10%'로 바꾼 연구용 변형입니다.`);
+  ], rows), `데이터: ${src}. 상한가(+29%↑) 마감 종목은 종가에 살 수 없어 뺐고, 'B(상한가 포함·체결 불가)'는 비교용입니다. 종가(+슬리피지 ${bt.assumptions.slip}%) 매수 → 다음 거래일 시가 매도, 비용 ${bt.assumptions.cost}% 반영, 날짜별 바스켓 평균을 다시 평균했습니다. 스위치 ON은 직전 ${bt.assumptions.window}회 평균이 0보다 클 때만 산 경우입니다. B(상위10%판)는 20일 수익률 조건을 '전 종목 상위 10%'로 바꾼 연구용 변형입니다.`);
 }
 function casesSec(){
   const C=D.cases; if(!C||!C.length) return "";
@@ -625,6 +626,72 @@ function realTradesSec(){
     {h:"매수가", core:false, v:r=>W(r.buy_price)}, {h:"평단", core:false, v:r=>W(r.avg_price)}, {h:"수량", core:false, v:r=>nz(r.qty)?"—":W(r.qty)},
     {h:"매도", core:false, v:r=>nz(r.sell_price)?"—":`${W(r.sell_price)} ${esc(r.sell_date||"")} ${esc(r.sell_time||"")}`}, {h:"메모", core:false, v:r=>esc(r.memo||"")},
   ], R.rows), "채팅으로 알려주시면 src/log_trade.py로 기록합니다. 수익률은 평단 기준, 비용 차감 후입니다.");
+}
+
+/* ───── 2부: 수익형 조건 탐색 ───── */
+function discoverySec(){
+  const X=D.discovery; if(!X) return "";
+  const w=X.window, B=X.base;
+  let h = sec(`수익형 조건 탐색 <span class="muted h2s">${ds(w.start)}~${ds(w.end)} · 표본 밖 ${ds(w.oos_start)}~</span>`,
+    rtable([{h:"라벨", l:true, v:k=>`${k} <span class="sub2">${esc(B[k].label)}</span>`}, {h:"전체", v:k=>T(B[k].all)}, {h:"표본 안", v:k=>T(B[k].is)}, {h:"표본 밖", v:k=>T(B[k].oos)},
+            {h:"단위", core:false, v:k=>esc(B[k].unit)}], Object.keys(B)),
+    `표본 ${W(X.sample.rows)}행(${W(X.sample.codes)}종목, 하루 약 ${W(X.sample.per_day)}종목) · 시총 1,000억↑ · 20일 평균 거래대금 20억↑ · 키움 정규장 일봉. 앞 ${w.is_days}일(표본 안)에서만 조건을 고르고 뒤 ${w.oos_days}일(표본 밖)에서 그대로 평가했습니다. 표본 안에서 ${W(X.tested_in_sample)}개 조건을 시험했고, 표본 밖 검정 ${X.oos_tests}건에 Bonferroni 보정을 적용했습니다. 아래는 라벨 기본값(아무 조건 없이 전 종목)입니다.`);
+  for(const [tg,s] of Object.entries(X.searches||{})){
+    const money = ["L2","CB1","CB2"].includes(tg);
+    const f = (b,k1,k2)=> b ? `${money?P(b[k1]):(T(b[k1])===("—")?"—":(b[k1]>0?"+":"")+(b[k1]*100).toFixed(1)+"%p")} <span class="muted">(t=${T(b[k2])}, ${T(b.per_day)}/일)</span>` : "—";
+    h += sec(`${tg} · ${esc(s.label)} <span class="muted h2s">표본 밖 기준 |t|≥${s.z_star}</span>`, rtable([
+      {h:"규칙", l:true, v:r=>esc(r.rule)},
+      {h:"판정", l:true, v:r=>`<span class="bdg ${r.survive?"go":"no"}">${r.survive?"생존":"탈락"}</span>`},
+      {h:money?"표본 안 평균":"표본 안 초과", v:r=>money?f(r.is,"mean","t"):f(r.is,"excess","t_excess")},
+      {h:money?"표본 밖 평균":"표본 밖 초과", v:r=>money?f(r.oos,"mean","t"):f(r.oos,"excess","t_excess"), c:r=>cls(r.oos&&(money?r.oos.mean:r.oos.excess))},
+      {h:"최근 3개월", core:false, v:r=>r.recent3m?`${money?P(r.recent3m.mean):T(r.recent3m.excess)} (${r.recent3m.n}건)`:"—"},
+      {h:"표본 밖 L3·L5·L1 비율", core:false, v:r=>r.oos?`${T(r.oos.L3)}% · ${T(r.oos.L5)}% · ${T(r.oos.L1)}%`:"—"},
+      {h:"표본 밖 lift(L3·L5·L1)", core:false, v:r=>`${T(r.lift_oos.L3)} · ${T(r.lift_oos.L5)} · ${T(r.lift_oos.L1)}`},
+      {h:"표본 밖 L2·CB1", core:false, v:r=>r.oos?`${P(r.oos.L2)} · ${P(r.oos.CB1)}`:"—"},
+      {h:"월별", core:false, v:r=>(r.monthly||[]).map(m=>`${m.month.slice(2,4)}.${m.month.slice(4)} <span class="${cls(m.mean)}">${money?P(m.mean,1):(m.mean*100).toFixed(0)+"%"}</span>`).join(" · ")},
+    ], s.rules) || emptyCard("표본 안에서 조건(하루 기회 1건↑, 날짜 군집 t ≥ 2)을 통과한 규칙이 없습니다."), money?`목표는 비용 후 기대수익입니다. 생존 = 표본 밖 평균 > 0 이고 t ≥ ${s.z_star}, 하루 기회 1건 이상.`:`비율 라벨은 같은 날 전 종목 비율 대비 초과분(%p)으로 판정합니다. 생존 = 표본 밖 초과 > 0 이고 t ≥ ${s.z_star}, 하루 기회 1건 이상.`);
+  }
+  const H=X.hyp_D;
+  if(H){
+    const row=(k,nm)=>{const s=H[k]; return s?{nm, s}:null;};
+    h += sec("사전 등록 가설: 대덕전자형(D)", rtable([
+      {h:"구간", l:true, v:r=>r.nm}, {h:"건수", v:r=>`${r.s.n} <span class="muted">(${r.s.per_day}/일)</span>`},
+      {h:"L2 시가→종가", v:r=>P(r.s.L2), c:r=>cls(r.s.L2)}, {h:"CB1 종가→시가", v:r=>P(r.s.CB1), c:r=>cls(r.s.CB1)},
+      {h:"L3 비율", core:false, v:r=>T(r.s.L3)+"%"}, {h:"L5 비율", core:false, v:r=>T(r.s.L5)+"%"}, {h:"L1 비율", core:false, v:r=>T(r.s.L1)+"%"},
+      {h:"CB2 +3%익절", core:false, v:r=>P(r.s.CB2), c:r=>cls(r.s.CB2)},
+    ], [row("all","전체"),row("is","표본 안"),row("oos","표본 밖")].filter(Boolean))
+    + `<h3 class="h3s">과거 해당 사례 상위 20 <span class="muted">20일 수익률 순</span></h3>` + rtable([
+      {h:"날짜·종목", l:true, v:r=>`${ds(r.date)} ${esc(r.name)}`}, {h:"20일", v:r=>P(r.ret20,0)}, {h:"익일 L2", v:r=>P(r.L2), c:r=>cls(r.L2)}, {h:"익일 CB1", v:r=>P(r.CB1), c:r=>cls(r.CB1)},
+      {h:"전일·당일 등락", core:false, v:r=>`${P(r.chg1,1)} → ${P(r.chg0,1)}`}, {h:"거래량/전일", core:false, v:r=>"×"+T(r.vr1)}, {h:"익일 시가→고가", core:false, v:r=>P(r.high_pct)},
+    ], H.cases||[]), `정의: ${esc(H.def)}. 표본 밖 전 종목 기본값: L2 ${P(H.base_oos.L2)}, CB1 ${P(H.base_oos.CB1)}, L3 ${T(H.base_oos.L3)}%.`);
+  }
+  const C=X.hyp_closebet;
+  if(C){
+    const b=v=>v&&v.days?`${P(v.mean)} <span class="muted">(t=${T(v.t)}, ${v.days}일)</span>`:"—";
+    for(const [rule,x] of Object.entries(C)){
+      const rows=[...Object.entries(x.switch).map(([k,v])=>({nm:`스위치 창 ${k}회(상위 5)`, v})), ...Object.entries(x.top_n).map(([k,v])=>({nm:`상위 ${k} (스위치 없음)`, v})),
+        ...x.crowd.map(c=>({nm:`쏠림 ${c.bucket}`, v:c})), ...x.nights.map(c=>({nm:c.bucket, v:c}))];
+      h += sec(`사전 등록 가설: 종가배팅 ${CBL[rule]||rule}`, rtable([
+        {h:"구분", l:true, v:r=>r.nm}, {h:"전체", v:r=>b(r.v.all), c:r=>cls(r.v.all&&r.v.all.mean)}, {h:"표본 밖", v:r=>b(r.v.oos), c:r=>cls(r.v.oos&&r.v.oos.mean)},
+        {h:"표본 안", core:false, v:r=>b(r.v.is)}], rows), "종가 매수 → 익일 시가 청산, 비용 후, 날짜별 바스켓 평균. 쏠림은 그날 해당 종목 수 구간입니다.");
+    }
+  }
+  return h + morningSec();
+}
+function morningSec(){
+  const M=D.morning_sim; if(!M||!M.best) return "";
+  let h="";
+  for(const [g,rows] of Object.entries(M.best)){
+    h += `<h3 class="h3s">${esc(g)} <span class="muted">${esc(M.groups[g]||"")}</span></h3>` + (rows.length? rtable([
+      {h:"진입 × 청산", l:true, v:r=>`${esc(M.entries[r.entry])} × ${esc(M.exits[r.exit])}`},
+      {h:"필터", l:true, v:r=>esc(r.filter)}, {h:"1회 기대수익", v:r=>`${P(r.ev)} <span class="muted">(t=${T(r.t)})</span>`, c:r=>cls(r.ev)},
+      {h:"거래·하루", v:r=>`${r.n} · ${r.per_day}`},
+      {h:"승률", core:false, v:r=>r.win+"%"}, {h:"평균 수익·손실", core:false, v:r=>`${P(r.avg_win)} / ${P(r.avg_loss)}`}, {h:"손익비", core:false, v:r=>T(r.payoff)},
+      {h:"평균 진입·보유", core:false, v:r=>`${r.t_in} · ${r.hold_min}분`}, {h:"최대 연속 손실", core:false, v:r=>r.max_consec_loss+"회"},
+    ], rows) : `<p class="note">30건 이상인 조합이 없습니다.</p>`);
+  }
+  return sec(`아침 단타 실전 시뮬레이션 <span class="muted h2s">키움 1분봉 · ${ds(M.window.start)}~${ds(M.window.end)}</span>`, h,
+    `그룹별 1회 기대수익(비용 후) 상위 조합입니다. 1분봉 호출 ${W(M.fetch.calls)}회(캐시 ${W(M.fetch.cache_hits)}). 진입·청산 정의는 README와 src/morning_sim.py에 있습니다. 같은 데이터에서 여러 조합을 골랐으므로 상위 값은 과대평가돼 있을 수 있습니다.`);
 }
 /* ───── 화면 ───── */
 function render(){
