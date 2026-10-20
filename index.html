@@ -102,6 +102,7 @@
   .tabbar{position:sticky;top:0;z-index:5;display:flex;gap:4px;margin:0 0 24px;padding:8px 0;background:var(--paper);border-bottom:1px solid var(--rule)}
   .tabbar [role=tab]{flex:1 1 0;min-width:0;font:inherit;font-size:14px;font-weight:560;padding:8px 0;letter-spacing:-.02em;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
   .tabbar [role=tab][aria-selected=true]{background:var(--ink);color:var(--paper)}
+  @media (max-width:420px){ .tabbar{gap:2px} .tabbar [role=tab]{font-size:12.5px;padding:7px 0;border-radius:7px} }
   .tabbar [role=tab]:focus-visible{outline:2px solid var(--fall);outline-offset:2px}
   [role=tabpanel]:focus{outline:none}
   /* 반응형 표: 핵심 열 + 행을 누르면 펼침 */
