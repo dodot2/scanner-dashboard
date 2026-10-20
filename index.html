@@ -539,7 +539,14 @@ function cbTab(){
   const led = C.ledger && C.ledger.rules;
   if(led && Object.keys(led).length){
     const ser = Object.entries(led).map(([r,x])=>({label:CBL[r]||r, color:CBC[r]||"var(--ink)", wide:r==="B", points:x.daily.map(d=>[d.date,d.cum])}));
-    h += sec("규칙별 누적 가상 손익", `<div class="card">${lineChart(ser,{label:"규칙별 누적 가상 손익", fmt:v=>(Math.round(v/10000)).toLocaleString("ko-KR")+"만"})}</div>`, "종목당 100만원 동일 금액, 익일 시가 청산 기준 누적입니다.");
+    const bs = C.ledger.by_source || [];
+    const srcTbl = bs.length ? rtable([
+      {h:"규칙", l:true, v:r=>CBL[r.rule]||r.rule},
+      {h:"합산(재구성+실시간)", v:r=>{const x=bs.find(y=>y.rule===r.rule&&y.subset==="all"); return x&&x.n?`${x.n}건 · ${P(x.avg)} · <b class="${cls(x.pnl)}">${WON(x.pnl)}</b>`:"—";}},
+      {h:"실시간만", v:r=>{const x=bs.find(y=>y.rule===r.rule&&y.subset==="live"); return x&&x.n?`${x.n}건 · ${P(x.avg)} · <b class="${cls(x.pnl)}">${WON(x.pnl)}</b>`:"아직 없음";}},
+    ], [...new Set(bs.map(x=>x.rule))].map(r=>({rule:r}))) : "";
+    h += sec("규칙별 누적 가상 손익", `<div class="card">${lineChart(ser,{label:"규칙별 누적 가상 손익", fmt:v=>(Math.round(v/10000)).toLocaleString("ko-KR")+"만"})}</div>` + srcTbl,
+      `종목당 100만원 동일 금액, 익일 시가 청산 기준 누적입니다. 그래프는 합산 기준입니다. 재구성 ${C.ledger.n_reconstructed||0}건은 지난 날짜를 키움 데이터로 다시 고른 기록이고(그날 장 마감까지의 데이터만 사용), 실시간 ${C.ledger.n_live||0}건은 서버가 당일 기록한 것입니다. 표는 건수 · 1회 평균 · 누적 손익 순입니다.`);
     h += sec("월별 가상 성과", rtable([
       {h:"월·규칙", l:true, v:x=>`${x.month.slice(0,4)}.${x.month.slice(4)} ${CBL[x.rule]||x.rule}`}, {h:"건수", v:x=>x.n}, {h:"① 시가", v:x=>P(x.r_open), c:x=>cls(x.r_open)}, {h:"승률", v:x=>x.win+"%"},
       {h:"④ 종가", core:false, v:x=>P(x.r_close), c:x=>cls(x.r_close)}, {h:"거래일", core:false, v:x=>x.days},
