@@ -591,8 +591,8 @@ function bBeforeAfterSec(){
   ], rows), "수정 전 구현은 봉이 끝나야 알 수 있는 거래량으로 판단하면서 돌파 순간 가격에 체결해 미래정보가 섞였습니다. 2026-10-08부터 '봉 마감 확인 진입'(첫 5분봉 고가 위에서 마감 + 그 봉 거래량 > 첫 봉 → 그 봉 종가 진입, 다음 봉부터 청산)으로 고쳤습니다. 같은 후보·같은 분봉으로 다시 계산한 값입니다.");
 }
 function cbResearchSec(){
-  const C=D.closebet||{}, bt=C.backtest_kiwoom||C.backtest; if(!bt||!bt.rules) return "";
-  const src = C.backtest_kiwoom ? "키움 정규장 일봉(종가 보정)" : "공개 데이터(Yahoo)";
+  const C=D.closebet||{}, bt=C.backtest; if(!bt||!bt.rules) return "";
+  const src = "서버 키움 일봉(다음 날 기준가로 보정한 종가, 스윙과 같은 데이터)";
   const rows=[]; ["B","B_lim","B10","A","D"].forEach(r=>{ const x=bt.rules[r]; if(!x) return;
     [["상위 5","top"],["해당 전부","all"],["상위 5 제외","rest"],["상위 5 + 스위치 ON","switch_on"]].forEach(([nm,k])=>rows.push({rule:r, nm, x:x[k], per:x.per_day}));});
   const b=v=>v&&v.days?`${P(v.mean)} <span class="muted">(t=${T(v.t)}, ${v.days}일)</span>`:"—";
