@@ -90,6 +90,8 @@
   .copy input{flex:1 1 160px;min-width:0;font:inherit;font-size:12.5px;padding:7px 10px;border:1px solid var(--rule);border-radius:6px;background:var(--paper);color:var(--ink)}
   .copy button{font:inherit;font-size:13px;padding:7px 14px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:6px;cursor:pointer}
   .empty{text-align:center;padding:56px 20px;color:var(--muted)}.empty p{margin:0 0 6px}
+  .age{font-size:12px;font-weight:400;color:var(--muted);white-space:nowrap}
+  .age.stale{color:var(--warn-ink);background:var(--warn-bg);border:1px solid var(--warn-rule);border-radius:999px;padding:1px 8px}
   .bdg{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;border:1px solid var(--rule);color:var(--muted)}
   .bdg.go{background:var(--ink);color:var(--paper);border-color:var(--ink)}
   .bdg.no{text-decoration:line-through}
@@ -208,6 +210,9 @@ function rtable(cols, rows, o={}){
     `<tr class="rr${o.rowCls?" "+o.rowCls(r,i):""}"${ex?' tabindex="0" aria-expanded="false"':""}>${core.map(c=>td(c,r,i)).join("")}</tr>`+
     (ex?`<tr class="xrow" hidden><td colspan="${core.length}"><dl class="kv">${more.map(c=>`<div><dt>${esc(c.h)}</dt><dd class="${c.c?c.c(r,i):""}">${c.v(r,i)}</dd></div>`).join("")}</dl></td></tr>`:"")).join("")}</tbody></table>${ex?`<p class="hint">행을 누르면 나머지 항목이 펼쳐집니다.</p>`:""}</div>`;
 }
+// 수동 실행 패널 기준일·경과일(14일 넘으면 경고색). d: YYYYMMDD
+function ageTag(d){ if(!d) return ""; const k=new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6,8)); const n=Math.floor((Date.now()-k)/864e5);
+  return ` <span class="age${n>14?" stale":""}">기준 ${ds(d)} · ${n}일 전${n>14?" · 14일 넘음, 다시 실행 필요":""}</span>`; }
 const sec = (title, body, note) => `<section><h2>${title}</h2>${note?`<p class="note">${note}</p>`:""}${body}</section>`;
 const emptyCard = (...lines) => `<div class="card empty">${lines.map(l=>`<p>${l}</p>`).join("")}</div>`;
 /* ───── 선별 효과 판정 ───── */
@@ -268,7 +273,7 @@ function oneLiners(){
   } else items.push(`<li><b>선별 효과</b> 아직 평가된 거래가 없어 판단할 수 없습니다</li>`);
   const B = D.b_backtest;
   if(B && B.summary){ const s=B.summary.all;
-    items.push(`<li><b>B 과거 백테스트</b> ${B.window.days}일 후보 ${W(s.n)}건 중 진입 ${W(s.entered)}건(${T(s.entry_rate)}%) · 승률 ${T(s.win)}% · 같은 종목 A 대비 <span class="${cls(s.delta)}">${PP(s.delta)}%p</span> <span class="muted">(t=${T(s.t)})</span></li>`);
+    items.push(`<li><b>B 과거 백테스트</b>${ageTag(B.asof||B.window.end)} ${B.window.days}일 후보 ${W(s.n)}건 중 진입 ${W(s.entered)}건(${T(s.entry_rate)}%) · 승률 ${T(s.win)}% · 같은 종목 A 대비 <span class="${cls(s.delta)}">${PP(s.delta)}%p</span> <span class="muted">(t=${T(s.t)})</span></li>`);
   }
   return sec("한눈에", `<ul class="sum card">${items.join("")}</ul>`);
 }
@@ -415,7 +420,7 @@ function entrySec(R){
   const eg=B.entry_grid;
   const grid = eg && eg.n_rows>0 ? `<h3 class="h3s">진입 규칙 그리드 <span class="muted">과거 분봉 ${W(eg.n_rows)}건 · 기준 |t|≥${eg.z_star}</span></h3>
     <p class="note">현재 규칙에서 한 값씩만 바꿔 같은 과거 분봉으로 다시 계산했습니다. '후보당 기대수익'은 진입하지 않은 후보를 0으로 둔 평균입니다. 여러 규칙을 비교했기 때문에 기준을 |t|≥${eg.z_star}로 올렸습니다.</p>${gridTable(eg.rules)}` : "";
-  return sec(`B 과거 백테스트 <span class="muted h2s">키움 5분봉 소급 · ${esc(B.generated||"")} 기준</span>`,
+  return sec(`B 과거 백테스트 <span class="muted h2s">키움 5분봉 소급 · 수동 실행(${esc(B.generated||"")})</span>${ageTag(B.asof||B.window.end)}`,
     tbl + `<p class="note" style="margin-top:12px">B−A는 B가 진입한 종목만 같은 종목의 A와 짝지어 뺀 값입니다. 후보당 B−A는 B가 진입하지 않은 후보를 0(현금)으로, A는 모든 후보를 매수한 것으로 보고 비교합니다. 청산 사유: ${ex}.</p>
     <p class="note">이 결과는 키움이 연결된 PC에서만 갱신되고, 매일 자동 실행(공개 데이터)은 이 표를 지우지 않고 그대로 보여줍니다. 실운영 전방 기록(가상매매 성적)과는 섞지 않습니다. 과거 고가·저가·거래량에는 애프터마켓 체결이 섞였을 수 있습니다.</p>${grid}`,
     `연구실 '현재 설정' 후보(선정일 ${ds(w.start)}~${ds(w.end)}, ${w.days}일)의 다음 거래일 5분봉을 키움에서 소급해 받아 새 방식(B)을 계산하고, 같은 종목의 기존 방식(A, 시가→종가)과 짝지어 비교했습니다. 표본 밖은 ${ds(w.oos_start)}부터입니다. 규칙은 갭 ${a.gap[0]}~${a.gap[1]}%, 익절 ${a.tp}%, 09:${String(5*a.deadline_bars).padStart(2,"0")}까지 진입, 거래비용 ${a.cost}%·슬리피지 ${a.slip}% 반영입니다. 후보 ${W(B.candidates)}건 중 ${W(B.compared)}건을 비교했고, 분봉을 받지 못한 ${W(B.no_bars)}건은 뺐습니다.`);
@@ -478,7 +483,7 @@ function logTab(){
 
 
 /* ───── 종가배팅(가상) ───── */
-const CBL = {B:"종가_B", A:"A", D:"D(대덕전자형)", B10:"B(상위10%판)", B_lim:"B(상한가 포함·체결 불가)"};
+const CBL = {B:"종가_B", A:"A", D:"D(대덕전자형)", B10:"B(상위10%판)", B_lim:"참고: B 상한가 포함(체결 불가 가정)"};
 const CBN = {B:"주력 · 20일 +20%↑ · 당일 +3%↑ · 양봉 · 고가 대비 −2% 이내", A:"비교 · 등락 +6~10% · 거래량 3배↑ · 거래대금 100억↑", D:"비교 · 20일 상위10% · 전일 +5% 양봉 → 당일 음봉 −1.5~−6%"};
 function swBadge(s){ if(!s) return `<span class="bdg">—</span>`; return `<span class="bdg ${s.on?"go":""}">${s.on?"ON":"OFF"}</span>`; }
 function lineChart(series, opt={}){
@@ -527,7 +532,7 @@ function cbPrevBlock(prev, title){
   ], prev.rows), "다음 거래일 가격으로 정산한 가상 결과입니다(비용·슬리피지 반영). ②는 5분봉이 있을 때만, ③은 분봉이 없으면 일봉 근사입니다.");
 }
 function cbTab(){
-  const C=D.closebet; if(!C||!C.state) return emptyCard("아직 종가배팅 기록이 없습니다.","매일 16:30 정규 실행에서 규칙별 상위 5종목을 가상 매수로 기록합니다.");
+  const C=D.closebet; if(!C||!C.state) return emptyCard("아직 종가배팅 기록이 없습니다.","매일 15:32 서버 수집 뒤 장 마감 분석에서 규칙별 상위 5종목을 가상 매수로 기록합니다.");
   const st=C.state, sw=st.switches, bt=C.backtest;
   const cards = ["B","A","D"].map(r=>{ const s=sw[r]||{};
     return `<article class="card cc"><header><b>${CBL[r]}</b>${swBadge(s)}</header><p class="cm">${CBN[r]}</p>
@@ -594,12 +599,13 @@ function cbResearchSec(){
   const C=D.closebet||{}, bt=C.backtest; if(!bt||!bt.rules) return "";
   const src = "서버 키움 일봉(다음 날 기준가로 보정한 종가, 스윙과 같은 데이터)";
   const rows=[]; ["B","B_lim","B10","A","D"].forEach(r=>{ const x=bt.rules[r]; if(!x) return;
-    [["상위 5","top"],["해당 전부","all"],["상위 5 제외","rest"],["상위 5 + 스위치 ON","switch_on"]].forEach(([nm,k])=>rows.push({rule:r, nm, x:x[k], per:x.per_day}));});
+    // B_lim은 상한가 종목을 종가에 산다고 가정한 참고값(실제 체결 불가) — 스위치 행은 보이지 않는다
+    [["상위 5","top"],["해당 전부","all"],["상위 5 제외","rest"],["상위 5 + 스위치 ON","switch_on"]].filter(([nm,k])=>!(r==="B_lim"&&k==="switch_on")).forEach(([nm,k])=>rows.push({rule:r, nm, x:x[k], per:x.per_day}));});
   const b=v=>v&&v.days?`${P(v.mean)} <span class="muted">(t=${T(v.t)}, ${v.days}일)</span>`:"—";
   return sec(`종가배팅 백테스트 <span class="muted h2s">${ds(bt.window.start)}~${ds(bt.window.end)} · 표본 밖 ${ds(bt.window.oos_start)}~</span>`, rtable([
-    {h:"규칙·묶음", l:true, v:r=>`${CBL[r.rule]} · ${r.nm}`}, {h:"전체", v:r=>b(r.x.all), c:r=>cls(r.x.all.mean)}, {h:"표본 밖", v:r=>b(r.x.oos), c:r=>cls(r.x.oos.mean)},
+    {h:"규칙·묶음", l:true, v:r=>r.rule==="B_lim"?`<span class="muted">${CBL[r.rule]} · ${r.nm}</span>`:`${CBL[r.rule]} · ${r.nm}`}, {h:"전체", v:r=>b(r.x.all), c:r=>cls(r.x.all.mean)}, {h:"표본 밖", v:r=>b(r.x.oos), c:r=>cls(r.x.oos.mean)},
     {h:"표본 안", core:false, v:r=>b(r.x.is), c:r=>cls(r.x.is.mean)}, {h:"하루 평균 종목", core:false, v:r=>r.per},
-  ], rows), `데이터: ${src}. 상한가(+29%↑) 마감 종목은 종가에 살 수 없어 뺐고, 'B(상한가 포함·체결 불가)'는 비교용입니다. 종가(+슬리피지 ${bt.assumptions.slip}%) 매수 → 다음 거래일 시가 매도, 비용 ${bt.assumptions.cost}% 반영, 날짜별 바스켓 평균을 다시 평균했습니다. 스위치 ON은 직전 ${bt.assumptions.window}회 평균이 0보다 클 때만 산 경우입니다. B(상위10%판)는 20일 수익률 조건을 '전 종목 상위 10%'로 바꾼 연구용 변형입니다.`);
+  ], rows), `데이터: ${src}. 상한가(+29%↑) 마감 종목은 종가에 살 수 없어 뺐고, '참고: B 상한가 포함(체결 불가 가정)'은 상한가 마감 종목을 종가에 샀다고 가정한 비교용 수치이며, 스위치·텔레그램 후보에는 쓰지 않습니다. 종가(+슬리피지 ${bt.assumptions.slip}%) 매수 → 다음 거래일 시가 매도, 비용 ${bt.assumptions.cost}% 반영, 날짜별 바스켓 평균을 다시 평균했습니다. 스위치 ON은 직전 ${bt.assumptions.window}회 평균이 0보다 클 때만 산 경우입니다. B(상위10%판)는 20일 수익률 조건을 '전 종목 상위 10%'로 바꾼 연구용 변형입니다.`);
 }
 function casesSec(){
   const C=D.cases; if(!C||!C.length) return "";
@@ -619,7 +625,7 @@ function casesSec(){
     else if(cs.type==="closebet_preview"){
       const a=cs.actual, n=cs.next;
       inner=`<dl class="kv"><div><dt>장중 미리보기</dt><dd>${f(cs.preview_count)}종목 · ${(cs.preview_top||[]).map(esc).join(", ")}</dd></div>
-        <div><dt>실제 종가 기준</dt><dd>${a?`${a.n_qualified}종목 · `+a.top.map(x=>esc(x.name)+" "+P(x.change,1)).join(", "):"아직 없음(16:30 실행 후)"}</dd></div>
+        <div><dt>실제 종가 기준</dt><dd>${a?`${a.n_qualified}종목 · `+a.top.map(x=>esc(x.name)+" "+P(x.change,1)).join(", "):"아직 없음(15:32 수집·분석 후)"}</dd></div>
         <div><dt>다음 거래일 성과</dt><dd>${n?`${ds(n.d1)} 시가 청산 평균 <span class="${cls(n.avg_open)}">${P(n.avg_open)}</span> · 종가 청산 <span class="${cls(n.avg_close)}">${P(n.avg_close)}</span> (${n.nights}일 보유)`:"정산 대기"}</dd></div></dl>`;
     }
     return `<article class="card" style="margin-bottom:12px"><header class="ch"><b>${esc(cs.title||"")}</b> <span class="muted">${ds(cs.date)}</span></header>
@@ -640,7 +646,7 @@ function realTradesSec(){
 function discoverySec(){
   const X=D.discovery; if(!X) return "";
   const w=X.window, B=X.base;
-  let h = sec(`수익형 조건 탐색 <span class="muted h2s">${ds(w.start)}~${ds(w.end)} · 표본 밖 ${ds(w.oos_start)}~</span>`,
+  let h = sec(`수익형 조건 탐색 <span class="muted h2s">${ds(w.start)}~${ds(w.end)} · 표본 밖 ${ds(w.oos_start)}~ · 수동 실행</span>${ageTag(w.end)}`,
     rtable([{h:"라벨", l:true, v:k=>`${k} <span class="sub2">${esc(B[k].label)}</span>`}, {h:"전체", v:k=>T(B[k].all)}, {h:"표본 안", v:k=>T(B[k].is)}, {h:"표본 밖", v:k=>T(B[k].oos)},
             {h:"단위", core:false, v:k=>esc(B[k].unit)}], Object.keys(B)),
     `표본 ${W(X.sample.rows)}행(${W(X.sample.codes)}종목, 하루 약 ${W(X.sample.per_day)}종목) · 시총 1,000억↑ · 20일 평균 거래대금 20억↑ · 키움 정규장 일봉. 앞 ${w.is_days}일(표본 안)에서만 조건을 고르고 뒤 ${w.oos_days}일(표본 밖)에서 그대로 평가했습니다. 표본 안에서 ${W(X.tested_in_sample)}개 조건을 시험했고, 표본 밖 검정 ${X.oos_tests}건에 Bonferroni 보정을 적용했습니다. 아래는 라벨 기본값(아무 조건 없이 전 종목)입니다.`);
@@ -698,7 +704,7 @@ function morningSec(){
       {h:"평균 진입·보유", core:false, v:r=>`${r.t_in} · ${r.hold_min}분`}, {h:"최대 연속 손실", core:false, v:r=>r.max_consec_loss+"회"},
     ], rows) : `<p class="note">30건 이상인 조합이 없습니다.</p>`);
   }
-  return sec(`아침 단타 실전 시뮬레이션 <span class="muted h2s">키움 1분봉 · ${ds(M.window.start)}~${ds(M.window.end)}</span>`, h,
+  return sec(`아침 단타 실전 시뮬레이션 <span class="muted h2s">키움 1분봉 · ${ds(M.window.start)}~${ds(M.window.end)} · 수동 실행</span>${ageTag(M.window.end)}`, h,
     `그룹별 1회 기대수익(비용 후) 상위 조합입니다. 1분봉 호출 ${W(M.fetch.calls)}회(캐시 ${W(M.fetch.cache_hits)}). 진입·청산 정의는 README와 src/morning_sim.py에 있습니다. 같은 데이터에서 여러 조합을 골랐으므로 상위 값은 과대평가돼 있을 수 있습니다.`);
 }
 
@@ -719,6 +725,41 @@ function cbTodayBlock(){
 }
 
 /* ───── 스윙(가상) ───── */
+function btCurve(a, b){
+  // a: 장세 필터 끔, b: 켬 — [[날짜, 누적 수익 합(%)], ...]
+  const ds_=[...new Set([...(a||[]),...(b||[])].map(x=>x[0]))].sort(); if(ds_.length<2) return "";
+  const w=900,h=230,pl=56,pr=12,pt=14,pb=26, all=[...(a||[]),...(b||[])].map(x=>x[1]);
+  let lo=Math.min(0,...all), hi=Math.max(0,...all); if(hi===lo) hi=lo+1; const pad=(hi-lo)*.08; lo-=pad; hi+=pad;
+  const ix=Object.fromEntries(ds_.map((d,i)=>[d,i])), X=d=>pl+(w-pl-pr)*ix[d]/(ds_.length-1), Y=v=>pt+(h-pt-pb)*(1-(v-lo)/(hi-lo));
+  let g=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="스윙 백테스트 누적 수익">`;
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v); g+=`<line x1="${pl}" y1="${y}" x2="${w-pr}" y2="${y}" stroke="var(--rule)"/><text x="${pl-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--muted)">${Math.round(v)}%</text>`;}
+  if(lo<0&&hi>0) g+=`<line x1="${pl}" y1="${Y(0)}" x2="${w-pr}" y2="${Y(0)}" stroke="var(--muted)"/>`;
+  const sp=D.swing_bt.window.split; if(ix[sp]===undefined){ const nx=ds_.find(d=>d>sp); if(nx) g+=`<line x1="${X(nx)}" y1="${pt}" x2="${X(nx)}" y2="${h-pb}" stroke="var(--muted)" stroke-dasharray="3 3"/><text x="${X(nx)+4}" y="${pt+10}" font-size="11" fill="var(--muted)">하락장 →</text>`; }
+  [[a,"var(--flat)","4 3"],[b,"var(--rise)",""]].forEach(([s,c,dsh])=>{ if(s&&s.length>1) g+=`<polyline points="${s.map(x=>`${X(x[0])},${Y(x[1])}`).join(" ")}" fill="none" stroke="${c}" stroke-width="${dsh?1.5:2.2}" stroke-dasharray="${dsh}"/>`; });
+  [0,Math.floor((ds_.length-1)/2),ds_.length-1].forEach(i=>{g+=`<text x="${X(ds_[i])}" y="${h-8}" text-anchor="middle" font-size="11" fill="var(--muted)">${ds(ds_[i])}</text>`;});
+  return `<div class="card chart">${g}</svg><p class="note">점선: 장세 필터 끔 · 실선: 코스피 20일선 위일 때만 진입. 청산일 기준 거래 수익률(비용 후) 단순 합.</p></div>`;
+}
+function swingBtSec(){
+  const B=D.swing_bt; if(!B||!B.variants) return "";
+  const v0=B.variants[0], a=B.assumptions;
+  const rows=[]; [["all","필터 끔"],["filter","코스피 20일선 위만"]].forEach(([k,nm])=>[["all","전체"],["up","상승장(~5/28)"],["down","하락장(5/29~)"]].forEach(([p,pn])=>rows.push({nm:`${nm} · ${pn}`, s:(v0[k]||{})[p]||{}})));
+  const st = rtable([
+    {h:"구분", l:true, v:r=>r.nm}, {h:"거래", v:r=>W(r.s.trades)}, {h:"승률", v:r=>nz(r.s.win)?"—":r.s.win+"%"},
+    {h:"평균", v:r=>P(r.s.mean), c:r=>cls(r.s.mean)}, {h:"중앙값", v:r=>P(r.s.median), c:r=>cls(r.s.median)},
+    {h:"보유일", core:false, v:r=>T(r.s.hold)}, {h:"T 도달·L 이탈·만료", core:false, v:r=>r.s.reasons?`${r.s.reasons["T 도달"]}% · ${r.s.reasons["L 이탈"]}% · ${r.s.reasons["만료"]}%`:"—"},
+    {h:"최대 연속 손실", core:false, v:r=>nz(r.s.max_consec_loss)?"—":r.s.max_consec_loss+"회"}, {h:"t", core:false, v:r=>T(r.s.t)},
+  ], rows);
+  const sens = rtable([
+    {h:"변형(하나씩)", l:true, v:r=>esc(r.name)}, {h:"후보", v:r=>W(r.n_cands)}, {h:"거래", v:r=>W(r.all.all.trades)},
+    {h:"승률", v:r=>nz(r.all.all.win)?"—":r.all.all.win+"%"}, {h:"평균", v:r=>P(r.all.all.mean), c:r=>cls(r.all.all.mean)},
+    {h:"중앙값", core:false, v:r=>P(r.all.all.median), c:r=>cls(r.all.all.median)},
+    {h:"필터 켬 평균", core:false, v:r=>`${P(r.filter.all.mean)} <span class="muted">(${W(r.filter.all.trades)}건)</span>`, c:r=>cls(r.filter.all.mean)},
+  ], B.variants);
+  const cs = (B.cases||[]).map(c=>`<li><b>${esc(c.name)}</b> 후보일 ${c.cand_days.length}일${c.cand_days.length?` (${c.cand_days.slice(0,6).map(md).join(", ")}${c.cand_days.length>6?" 외":""})`:""}${c.trades.length?" · "+c.trades.map(t=>`${md(t.entry_date)} 진입 → ${t.status==="종료"?`${md(t.exit_date)} ${esc(t.reason)} <span class="${cls(t.ret)}">${P(t.ret)}</span>`:`보유 중 <span class="${cls(t.mark)}">${P(t.mark)}</span>`}`).join(" / "):" · 진입 없음"}</li>`).join("");
+  return sec(`스윙 백테스트 <span class="muted h2s">${ds(B.window.start)}~${ds(B.window.end)} · ${B.window.days}거래일 · 하루 후보 ${T(v0.all.all.cands_per_day)}건 · 수동 실행</span>${ageTag(B.asof)}`,
+    st + btCurve(v0.all.curve, v0.filter.curve) + `<h3 class="h3s">민감도(한 번에 하나씩, 필터 끔·전체 구간)</h3>` + sens + (cs?`<h3 class="h3s">사례</h3><ul class="sum card">${cs}</ul>`:""),
+    `매 거래일 그날까지의 데이터만으로 현재 스윙 규칙(config 그대로)을 돌려 후보를 뽑고, 다음 날 시가(갭 ${a.gap[0]}~+${a.gap[1]}%, 시가 > L일 때만, 30분 거래량 조건은 ${esc(a.vol30)})에 샀다고 봅니다. 청산: ${esc(a.exit)}. 비용 ${a.cost_pct}% + 슬리피지 ${a.slippage_pct}%. 한계: ${esc(a.limits)}.`);
+}
 function swingTab(){
   const S=D.swing; if(!S) return emptyCard("아직 스윙 기록이 없습니다.","장 마감 후 분석이 돌면 후보와 추천 장부가 여기에 쌓입니다.");
   const st=S.stats||{};
@@ -746,7 +787,7 @@ function swingTab(){
       {h:"마지막 종가", core:false, v:r=>`${W(r.last_close)} (${md(String(r.last_date))})`},
     ], book) : emptyCard("아직 추천이 없습니다.")),
     `보유 ${st.open||0} · 종료 ${st.closed||0}${st.closed?` (평균 ${P(st.closed_avg)}, 승률 ${T(st.closed_win)}%, 합계 ${P(st.cum_closed)})`:""}${st.open?` · 보유 평가 평균 ${P(st.open_avg)}`:""}. 추천일 종가(+슬리피지)에 샀다고 보고, 매일 종가로 L 이탈 → 목표 T×0.97 도달(고가) → 슈팅(종가 ≥ P×1.2, 거래량 ≥ E 평균×0.5) → 기한 만료 순서로 판정합니다.`);
-  return h;
+  return h + swingBtSec();
 }
 /* ───── 화면 ───── */
 function render(){
