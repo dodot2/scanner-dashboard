@@ -646,7 +646,7 @@ function realTradesSec(){
 function discoverySec(){
   const X=D.discovery; if(!X) return "";
   const w=X.window, B=X.base;
-  let h = sec(`수익형 조건 탐색 <span class="muted h2s">${ds(w.start)}~${ds(w.end)} · 표본 밖 ${ds(w.oos_start)}~ · 수동 실행</span>${ageTag(w.end)}`,
+  let h = sec(`수익형 조건 탐색 <span class="muted h2s">${ds(w.start)}~${ds(w.end)} · 표본 밖 ${ds(w.oos_start)}~ · 주 1회 Actions(토요일 스냅샷 교체 뒤)</span>${ageTag(w.end)}`,
     rtable([{h:"라벨", l:true, v:k=>`${k} <span class="sub2">${esc(B[k].label)}</span>`}, {h:"전체", v:k=>T(B[k].all)}, {h:"표본 안", v:k=>T(B[k].is)}, {h:"표본 밖", v:k=>T(B[k].oos)},
             {h:"단위", core:false, v:k=>esc(B[k].unit)}], Object.keys(B)),
     `표본 ${W(X.sample.rows)}행(${W(X.sample.codes)}종목, 하루 약 ${W(X.sample.per_day)}종목) · 시총 1,000억↑ · 20일 평균 거래대금 20억↑ · 키움 정규장 일봉. 앞 ${w.is_days}일(표본 안)에서만 조건을 고르고 뒤 ${w.oos_days}일(표본 밖)에서 그대로 평가했습니다. 표본 안에서 ${W(X.tested_in_sample)}개 조건을 시험했고, 표본 밖 검정 ${X.oos_tests}건에 Bonferroni 보정을 적용했습니다. 아래는 라벨 기본값(아무 조건 없이 전 종목)입니다.`);
@@ -763,7 +763,8 @@ function swingBtSec(){
 function swingTab(){
   const S=D.swing; if(!S) return emptyCard("아직 스윙 기록이 없습니다.","장 마감 후 분석이 돌면 후보와 추천 장부가 여기에 쌓입니다.");
   const st=S.stats||{};
-  let h = sec(`오늘 스윙 후보 · ${ds(S.date)} <span class="muted h2s">폭발일 ${W(S.n_eval)}종목 평가</span>`,
+  let h = `<div class="warns" role="note"><b>가상 기록(검증 중, 매수 추천 아님)</b> — 스윙 후보·장부·백테스트는 규칙을 검증하기 위한 가상 기록입니다. 09:31 "조건 충족(가상)"도 진입 권유가 아닙니다.</div>`;
+  h += sec(`오늘 스윙 후보 · ${ds(S.date)} <span class="muted h2s">폭발일 ${W(S.n_eval)}종목 평가</span>`,
     (S.candidates&&S.candidates.length) ? rtable([
       {h:"종목", l:true, v:r=>`${esc(r.name)} <span class="muted">${esc(r.code)}</span>`},
       {h:"종가", v:r=>W(r.close)}, {h:"평단 P · 방어선 L", v:r=>`${W(r.P)} · ${W(r.L)}`},
@@ -774,7 +775,7 @@ function swingTab(){
       {h:"폭발일", core:false, v:r=>(r.e_dates||[]).map(md).join(", ")},
       {h:"E 평균 거래량", core:false, v:r=>W(r.e_vol_avg)},
     ], S.candidates) : emptyCard("오늘 조건을 모두 통과한 종목이 없습니다."),
-    "폭발일(거래량 3배↑·+5%↑·양봉·상반부 마감) 뒤 평단 근처로 눌리고 추세가 살아 있는 종목입니다. 점수 = 매집 R × (1−분배 D) × 목표 여력 × 남은 기한 비율. 다음 거래일 09:31에 서버가 시가 갭·30분 거래량·방어선 유지를 확인해 진입 가능 여부를 텔레그램으로 보냅니다.");
+    "폭발일(거래량 3배↑·+5%↑·양봉·상반부 마감) 뒤 평단 근처로 눌리고 추세가 살아 있는 종목입니다. 점수 = 매집 R × (1−분배 D) × 목표 여력 × 남은 기한 비율. 다음 거래일 09:31에 서버가 시가 갭·30분 거래량·방어선 유지를 확인해 조건 충족 여부(가상)를 텔레그램으로 보냅니다.");
   const book=S.book||[];
   h += sec("추천 장부(가상)", (book.length? rtable([
       {h:"추천일·종목", l:true, v:r=>`${md(String(r.rec_date))} ${esc(r.name)}`},
