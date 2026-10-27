@@ -780,15 +780,16 @@ function swingTab(){
   const book=S.book||[];
   h += sec("추천 장부(가상)", (book.length? rtable([
       {h:"추천일·종목", l:true, v:r=>`${md(String(r.rec_date))} ${esc(r.name)}`},
-      {h:"진입가", v:r=>W(r.entry)},
+      {h:"진입가", v:r=>r.entry==null||r.entry===""?"—":W(r.entry)},
       {h:"상태", l:true, v:r=>`<span class="bdg ${r.status==="보유"?"":(r.ret>0?"go":"no")}">${esc(r.status)}</span>`},
       {h:"수익(비용 후)", v:r=>r.status==="보유"?`${P(r.unreal)} <span class="muted">평가</span>`:P(r.ret), c:r=>cls(r.status==="보유"?r.unreal:r.ret)},
       {h:"P · L · T", core:false, v:r=>`${W(r.P)} · ${W(r.L)} · ${W(r.T)}`},
       {h:"기한", core:false, v:r=>ds(String(r.deadline))},
       {h:"종료", core:false, v:r=>r.exit_date?`${ds(String(r.exit_date))} · ${W(r.exit_px)}`:"—"},
       {h:"마지막 종가", core:false, v:r=>`${W(r.last_close)} (${md(String(r.last_date))})`},
+      {h:"메모", l:true, core:false, v:r=>esc(r.note||"")},
     ], book) : emptyCard("아직 추천이 없습니다.")),
-    `보유 ${st.open||0} · 종료 ${st.closed||0}${st.closed?` (평균 ${P(st.closed_avg)}, 승률 ${T(st.closed_win)}%, 합계 ${P(st.cum_closed)})`:""}${st.open?` · 보유 평가 평균 ${P(st.open_avg)}`:""}. 추천일 종가(+슬리피지)에 샀다고 보고, 매일 종가로 L 이탈 → 목표 T×0.97 도달(고가) → 슈팅(종가 ≥ P×1.2, 거래량 ≥ E 평균×0.5) → 기한 만료 순서로 판정합니다.`);
+    `대기 ${st.waiting||0} · 보유 ${st.open||0} · 종료 ${st.closed||0} · 진입 안 함 ${st.not_entered||0}${st.closed?` (평균 ${P(st.closed_avg)}, 승률 ${T(st.closed_win)}%, 합계 ${P(st.cum_closed)})`:""}${st.open?` · 보유 평가 평균 ${P(st.open_avg)}`:""}. 추천일에는 대기, 다음 거래일 09:31 조건 충족이면 그날 시가(+슬리피지)에 샀다고 보고(보류면 진입 안 함), 매일 종가로 L 이탈 → 목표 T×0.97 도달(고가) → 슈팅(종가 ≥ P×1.2, 거래량 ≥ E 평균×0.5) → 기한 만료 순서로 판정합니다.`);
   return h + swingBtSec();
 }
 /* ───── 외부(동료) 추천 ───── */
